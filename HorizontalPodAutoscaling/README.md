@@ -135,4 +135,128 @@ So how do we bring these metrics into picture for HPA? Let's look at the compone
 
 ![custom_metrics_componenet](custom_metrics_component.png)
 
-Does it sound like a lot? Well, hold on, let's break it down a little further. Okay, so you do need the metrics server, by the way. So here's the problem, though, is that the default Kubernetes metrics server doesn't support custom metrics. So this is, for example, why you might put Prometheus in here, which is its own metrics server. So you're gonna make sure that your monitoring system and your agents can collect and expose the metrics in a format that the adapter can understand. Now, the adapter is an installed piece of software. So like Prometheus has an adapter, for example, that gets installed so that you can talk through Kubernetes to the Prometheus server. And so these monitoring systems and adapters and agents all work together so that Prometheus can make metrics available to HPA, which is only gonna talk to Kubernetes. So the idea here is that you need the agent, the collector, the adapter configuration, because HPA is only gonna talk to K8s. But reminder that for custom and external metrics, the native metrics server does not actually expose custom metrics. So when we talk about custom metrics, we're really talking about in-cluster custom data sources. This could be Prometheus, this could be other metrics servers, but that's the whole idea, is that custom is talking to something that's not the native metrics server. We'll catch you in the next video. 
+Does it sound like a lot? Well, hold on, let's break it down a little further. Okay, so you do need the metrics server, by the way. So here's the problem, though, is that the default Kubernetes metrics server doesn't support custom metrics. So this is, for example, why you might put Prometheus in here, which is its own metrics server. So you're gonna make sure that your monitoring system and your agents can collect and expose the metrics in a format that the adapter can understand. Now, the adapter is an installed piece of software. So like Prometheus has an adapter, for example, that gets installed so that you can talk through Kubernetes to the Prometheus server. And so these monitoring systems and adapters and agents all work together so that Prometheus can make metrics available to HPA, which is only gonna talk to Kubernetes. 
+
+So the idea here is that you need the agent, the collector, the adapter configuration, because HPA is only gonna talk to K8s. But reminder that for custom and external metrics, the native metrics server does not actually expose custom metrics. So when we talk about custom metrics, we're really talking about in-cluster custom data sources. This could be Prometheus, this could be other metrics servers, but that's the whole idea, is that custom is talking to something that's not the native metrics server. We'll catch you in the next video. 
+
+## External Metrics - Mechanisms
+
+Welcome everyone. You might be saying to yourself, okay, Michael Forrester, we've talked about native, we talked about custom, why should I care about external metrics? Well, let's talk about it. Let's set the stage with some of our foundational knowledge. So here we are talking again about external metrics in relation to the HPA. So let's get into it. Okay, so K8s external metrics has different from both custom and native metrics for HPA. This is actually truly external, right? This is where the HPA is going to actually talk to external data sources to get data that is going to help influence how you scale your applications in your cluster. So this enables scaling based on external factors, this could be all kinds of things, but it's usually done when either you're linked to another application or your infrastructure is like on a cloud provider, for example. So let's consider a practical scenario here where it might make a difference. So your application may rely on a cloud-based message queue, it might receive traffic from an external load balancer, and it's going to need metrics from that message queue or from that external load balancer to know whether or not it needs to scale or not. So this is how you get proactive instead of reactive. 
+
+![external_metrics_component.png](external_metrics_component.png)
+
+Now here are the components, and the components are going to look very similar to what you've seen for custom in that you have some kind of external metric source like a cloud provider, it could be even a third party, and you've got some kind of collection agent or store that's actually pulling that data or those metrics, which is what you see here. And so you want to think of your monitoring solution, for example, as a scout where it's going to fetch metrics from, for example, some kind of external source, and so the metrics adapter is going to act as a translator converting these metrics into a Kubernetes-friendly context. That's what the metrics adapter does, is it's a translator. Meanwhile, the HPA is going to be talking over to the Kubernetes API, using these metrics to adjust application workloads based on what it sees in the metrics. That's pretty important. Now there are some considerations to keep in mind, is that once again, the default Kubernetes metrics server does not support external metrics. So you're going to need to properly configure your metrics adapter to bridge the gap. That's what we're required, right? Once again, you're going to need some kind of collection tool, you need some kind of monitoring system that's going to talk to the adapter while the adapter talks to Kubernetes. So those are the things to keep in mind, right? Is that you need some kind of collections agent or service, you need an adapter for that service, and all of that typically is installed inside of Kubernetes so that HPA can talk to the Kubernetes API. And that's a wrap.
+
+## HPA Multiple Metrics
+
+Welcome everyone. We're going to talk about HPA's multiple metrics, basically the ability to do multiple metrics in the HPA context. So you're probably wondering why this matters, but you're in the right place, right? We're going to talk about, we're going to set the stage with a reliable scenario first. Okay. So imagine you're doing an e-commerce platform and you need to know where you can browse products, add them to your cart, and initially process those transactions, right? So it's not just any e-commerce site. It's a bustling one, right? With loads of customers, especially during peak shopping. But here's the catch. With all of this traffic, how do we ensure that everything runs smoothly? Because you can't just go off of CPU and memory. You might have to go after, you know, the number of transactions that are being processed. You know, what are the number of items that are in the cart? Is there some latency here? Is there a delay downstream? So you've got your platform, right? And you've got this Kubernetes deployment, and it's built on microservices. And each of these is a separate deployment. And this kind of modular setup for users who are browsing products on a different service, adding to your cart in a different service, and processing transactions in a different service, this is great because all of these can scale independently. However, managing this efficiently requires a bit of finesse. Why is that? Because scaling in this case isn't just about doubling all of your microservices at one time. You've got to scale the right microservice at the right time, especially during peak traffic times, because processing transactions may hit a peak, but browsing might be pretty low. 
+
+So how do you decide which metrics are important in this case? For example, let's take the product catalog. So we need to be able to scale the product catalog efficiently, but we want to monitor both CPU utilization, and we want to monitor request rate. So guys, we have to consider in this case, multiple metrics at once. This is the important thing. So we have this product catalog service, and we have to do request rate, we have to do CPU utilization. And we're trying to figure out how to expose the custom metrics from your application, because remember, this is inside the cluster. So we're not going outside the cluster for this. And CPU is a native HPA metrics server. metric, we don't have to use custom metrics for that one. That's just a native one. So this particular case, we have to kind of bring this to life, right? How do we do that? So we've got to instrument the back end to track active HTTP requests. And this is where tools, for example, like Prometheus can come into play, where it can actually track these metrics and collect them for us. So we've set the stage by having Prometheus collect data from our application around active HTTP requests. But then what needs to happen is we got to bridge the gap between our custom metrics and Kubernetes. And this is where the metrics adapter comes in, this tool. So in this case, it would be the Prometheus metrics adapter, this is going to make those metrics available to the Kubernetes cluster. Right? And so with our metrics now accessible, then the next thing we have to do is configure the Horizontal Pod Autoscaler to use these metrics effectively. So we're going to configure the HPA with multiple metrics, because we're going to scale the back end service based on both average CPU utilization as well as the custom HTTP metric. So how do we do that? And here's an example of what you might do to do this. So this particular case, for example, we've got a deployment, this is our back end service, right? We've set the minimum and maximum replicas, which we've seen this before. And we're actually pulling two different types of metrics, we're pulling a native resource, which in this case is CPU utilization at an average of 70%. And we're pulling a custom metric from pods. In this particular case, we're pulling active HTTP requests with an average value of 100. 
+
+```yaml
+# HPA.yaml
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: my-app-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: deployment
+    name: my-app
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Pods
+    pods:
+      metric:
+        name: active_http_requests
+      target:
+        type: averageValue
+        averageValue: "100"
+```
+
+**`So the beauty of this setup is that HPA is going to evaluate both the metrics and it's going to scale based on the one that demands the most replicas. `**
+
+So if either one of these is crossing the threshold, scaling is going to happen. Now, multiple measures can be powerful, but they're not always necessary. So we might discuss why you might avoid them. For example, sometimes using multiple metrics is not the best strategy, particularly if the metrics are not well correlated with the actual load. For example, let's say that CPU percentage basically doesn't necessarily indicate load, because the system's constantly running at 80%, it doesn't ever really shift. Now, I would probably ask you to refactor your application. But you know, that does happen. This is the real world, right? There are also cases where, you know, correlation is weak, and the relationship is unclear or hard to find. But also, you know, if there's adapter reliability in question, because it's a third-party source, or you can't maintain or monitor the adapters effectively, where the adapters are unreliable, again, I would ask you to get new adapters. But this kind of complexity and inconsistency in data collection can lead to more problems than it solves. You know, especially like if you have a flaky internet connection, and you're connecting, for example, to an external load, that could, you know, that could cause problems. So it's crucial to evaluate the context and the reliability of your metrics, especially with things like different sampling rates, like when metrics are collected at very different intervals, widely different, or the units or the scales of those metrics are not easily comparable, like you're collecting one every minutes and another one every one, you know, second, that doesn't actually work. 
+
+![when_to_avoid_multiple_metrics.png](when_to_avoid_multiple_metrics.png)
+
+So you got to make sure that there's some similar some nearness to the metrics as far as the intervals and the units of the metrics themselves. So as we wrap up, remember that the key is to balance complexity with simplicity and clarity. So I hope you found this exploration of HPA with multiple metrics insightful.
+
+## HPA Scaling Policy
+
+Hello everyone. All right, so we're going to talk about HPA scaling policies here. Today we're going to dive into this aspect around how the policies are actually configured, because, for example, what is a policy exactly? What are we talking about? Simply put, an HPA scaling policy is basically a set of rules or guidelines that instructs Kubernetes on how to scale a number of pods up or down based on specific metrics like CPU usage or memory. Now, they can also be custom and external metrics. We've talked about that. So imagine it as the brain behind the scenes, basically making sure your application has just the right resources and is not over-provisioned. So let's take a look at the typical scaling policy in this particular case. So here we've got a scaling policy, and the type is pods, and the type here is percent. 
+
+```yaml
+policies:
+- type: Pods
+  value: 4
+  periodSeconds: 60
+- type: Percent
+  value: 10
+  periodSeconds: 60
+```
+
+Now, what this does is that the policy section defines the rules about how HPA should scale. Each policy, by the way, can use a different method. So you can scale by a fixed number of pods, you can do percentages. So, for example, in this case, you could basically scale by four pods at a time, or in this case, by percentage. These decisions are typically reassessed every seconds to ensure responsiveness. But by blending these, you can gain some precise control over resource allocation. So here, by the way, notice that the values are set for four pods every seconds. Basically, here is a value of 10% every seconds. And remember that it's `evaluating every seconds by default`. So it's going to see a violation four times, then it's going to scale basically every seconds, it's going to add a new set of the maximum. So in this case, it would probably be four, assuming that you didn't have pods live, which you could, you could have that. 
+
+```yaml
+behavior:
+  scaleDown:
+    stabilizationWindowSeconds: 300
+```
+
+So one of the things to know about this aspect of scaling is that it is somewhat controlled by the stabilization window. Now, what does that mean? Basically, the stabilization window is trying to reduce churn or thrashing, where you're just scaling up and down all the time starting resources, stopping resources, they give us a buffer that allows you to autoscale up aggressively and scale back conservatively. So it's going to try and keep things smooth. So you're not just constantly thrashing up and down, right. So it basically is going to try and prevent unnecessary scaling, but particularly in the down direction. It's not going to prevent you from scaling up, but it's going to prevent you from scaling down aggressively. Again, you can control this. So here's the snippet of code, by the way, because by default, scale up is the stabilization window is actually set to zero, because you want to scale up aggressively and scale down conservatively. Now you can change that if you want to. Now notice here it's seconds, which is five minutes. So in this case, it's going to look at the highest interval from a defined interval, in this case, five minutes. So what it's going to do is it's going to find out what the highest metric was in the last five minutes and stay scaled to that metric. And you might say, Michael Forrester, why is that happening? The reason for that is that what this does is that let's say at minute one, you scale up to pods. And then at minute two, the thresholds are saying scale down to pods. But the stabilization window is five minutes. And so it looks back over the five-minute period and says, well, hold on, 40 was the highest we had. Let's hold on for a second. And then minute three goes along. It's still at pods. Minute four goes along, still pods. Minute five comes along, it says go back to 40 pods, right? So you're going from to 40. The stabilization window is going to prevent you from scaling down over a period of time. That's what its main function is. So it keeps you stable during volatile periods. So that's the main function of the stabilization window. And again, a reminder that scale up is zero because we want to scale up aggressively and we want to scale down conservatively.
+
+## Scaling Behavior
+
+Welcome back students. Let's talk about scaling behavior for HPA. Let's do just a quick overview. All right, so when we talk about the HPA, we're really talking about how deployments scale up and scale down. That's what we're talking about. This is all about managing performance, scale, and cost efficiency. That's what we're looking for. 
+
+Now, HPA is going to scale pod replicas to match load in Kubernetes as defined by either native metrics, custom metrics inside the cluster, or external metrics outside the cluster. So, scaling behavior basically says, you know, and we want to understand this because we want to make sure our performance and efficiency are strong, is that when we see a trigger threshold, like when the observed metric exceeds the defined target, what's going to happen? For example, let's say it's your CPU usage and it's going to spike above a certain threshold. It's like a wake-up call for HPA. Every seconds it's evaluating these metrics and all of a sudden it sees it's above the 70% that's defined. And what's going to happen is it's going to trigger and spring into action. So, it's going to basically take an action based on your scaling policy settings to increase the load. It's going to change the configuration of the workload. And so, this is where all of your policy configuration comes in. You can define the min and the max, you can define whether it scales off a percent or number, and you can define which metrics it's going to scale off of. Now, notice that I didn't mention anything about the stabilization window here because it's typically set to zero. 
+
+```yaml
+# scaling.yaml
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: my-app-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: deployment
+    name: my-app
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 50
+  behavior:
+    scaleUp:
+      stablilizationWindowSeconds: 0
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60
+    scaleDown:
+      stablilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+```
+
+But here, if load falls well below a certain threshold, there's still going to be a trigger. HPA is going to try and decrease the number of pods to optimize resource usage. But one thing to remember is that if you have set or kept the default stabilization window of five minutes, you're going to have to have five minutes of low utilization before HPA will actually scale down. If you set it to minutes, it's going to have to wait minutes of low utilization. Why would we set it so that low utilization has to wait? Remember, we want to scale up aggressively and scale down conservatively. That way, if we just have variable load, we're not causing problems for ourselves by scaling up and scaling down, scaling up and scaling down and causing all kinds of chaos. 
+
+So scaling behavior, as you can see here, notice that we've got several pieces here where the behavior as far as scale up, and by the way, that stabilization window seconds set to zero, that's the default. But we're basically saying I want to scale up 100% as necessary every seconds as needed. But notice that we're going to wait five minutes for load to cool off. And then every seconds, we're going to step down 10%. This is a pretty standard policy for this. So just be aware that that's happening. Now some of the best practices is that you want your stabilization window to reflect your cool off period as much as possible. You want to make sure your policies are clearly aligned and using metrics to actually indicate things that are important to your users and to your business. And you want to monitor and adjust. So you're going to have to experiment a little over time. But we usually once you get this set up, you don't have to change a whole lot of things. So there it is a very short but comprehensive look at the HPA scaling behavior. 
